@@ -20,8 +20,11 @@ launch() {
 }
 
 # Hard bounds so opening the panel can never trigger unbounded work, however
-# large the home directory: traversal stops at MAX_DEPTH, and at most
-# MAX_CANDIDATES files are stat'ed and sorted.
+# large the home directory: the walk itself is killed after MAX_WALK_SECONDS
+# (depth and result caps alone cannot bound traversal when few files match),
+# traversal stops at MAX_DEPTH, and at most MAX_CANDIDATES files are stat'ed
+# and sorted. A timed-out walk yields whatever it found so far.
+MAX_WALK_SECONDS=3
 MAX_DEPTH=8
 MAX_CANDIDATES=400
 
@@ -31,6 +34,7 @@ MAX_CANDIDATES=400
 # skipped while hidden directories are still descended into.
 find_candidates() {
   if command -v fd >/dev/null 2>&1; then
+    timeout -k 1 "$MAX_WALK_SECONDS" \
     fd --absolute-path --type f --hidden \
       --max-depth "$MAX_DEPTH" \
       -e db -e sqlite -e sqlite3 -e db3 \
@@ -38,8 +42,9 @@ find_candidates() {
       -E node_modules -E .git -E .cache -E .cargo -E .rustup \
       -E .local/share/Trash -E .mozilla -E .thunderbird -E '.local/share/*webkit*' \
       -E .config/chromium -E '*chrome-profile*' \
-      '^[^.]' "$HOME" -0 2>/dev/null
+      '^[^.]' "$HOME" -0 2>/dev/null || true
   else
+    timeout -k 1 "$MAX_WALK_SECONDS" \
     find "$HOME" -maxdepth "$MAX_DEPTH" \
       \( -name node_modules -o -name .git -o -name .cache -o -name .cargo \
          -o -name .rustup -o -name .mozilla -o -name .thunderbird \
@@ -47,7 +52,7 @@ find_candidates() {
          -o -path "$HOME/.config/chromium" \) -prune -o \
       -type f ! -name '.*' -mtime -60 \
       \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.db3' \) \
-      -print0 2>/dev/null
+      -print0 2>/dev/null || true
   fi
 }
 
