@@ -22,7 +22,7 @@ dot-directories. Click a row (or press Enter) and it opens in
 ## Install
 
 ```bash
-omarchy plugin add <git-url-of-this-repo> --enable
+omarchy plugin add https://github.com/Sudhanshugtm/omarchy-sqlite-viewer.git --enable
 ```
 
 ## Use
