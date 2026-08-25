@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "sid.sqlite-viewer",
+  "name": "SQLite Viewer",
+  "version": "1.0.0",
+  "author": "Sudhanshu Gautam",
+  "description": "Bar panel listing recent SQLite databases under $HOME (names/sizes/dates only); click to open in DB Browser for SQLite",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "SQLite Viewer",
+    "description": "Left-click opens the databases panel; click a row to open it in DB Browser for SQLite; right-click launches the viewer directly",
+    "category": "Developer",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}

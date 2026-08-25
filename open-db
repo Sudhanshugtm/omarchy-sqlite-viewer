@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Helper for the sid.sqlite-viewer bar widget.
+#   open-db                 launch an empty DB Browser for SQLite
+#   open-db <file>          open one database in the viewer
+#   open-db --list          print recent database files as JSON for the panel
+set -euo pipefail
+
+VIEWER=sqlitebrowser
+
+ensure_viewer() {
+  command -v "$VIEWER" >/dev/null 2>&1 && return 0
+  omarchy-notification-send "DB Browser for SQLite is not installed — run: omarchy pkg add sqlitebrowser" 2>/dev/null ||
+    echo "open-db: $VIEWER not found; install it with: omarchy pkg add sqlitebrowser" >&2
+  exit 1
+}
+
+launch() {
+  ensure_viewer
+  setsid uwsm app -- "$VIEWER" "$@" >/dev/null 2>&1 &
+}
+
+# Recent database files under $HOME, skipping heavy tool caches and browser
+# profiles. fd when available (Omarchy installs it by default but does not
+# depend on it), plain find otherwise. Dot-named files (macOS ._* stubs) are
+# skipped while hidden directories are still descended into.
+find_candidates() {
+  if command -v fd >/dev/null 2>&1; then
+    fd --absolute-path --type f --hidden \
+      -e db -e sqlite -e sqlite3 -e db3 \
+      --changed-within 60d \
+      -E node_modules -E .git -E .cache -E .cargo -E .rustup \
+      -E .local/share/Trash -E .mozilla -E .thunderbird -E '.local/share/*webkit*' \
+      -E .config/chromium -E '*chrome-profile*' \
+      '^[^.]' "$HOME" -0 2>/dev/null
+  else
+    find "$HOME" \
+      \( -name node_modules -o -name .git -o -name .cache -o -name .cargo \
+         -o -name .rustup -o -name .mozilla -o -name .thunderbird \
+         -o -name '*chrome-profile*' -o -path "$HOME/.local/share/Trash" \
+         -o -path "$HOME/.config/chromium" \) -prune -o \
+      -type f ! -name '.*' -mtime -60 \
+      \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.db3' \) \
+      -print0 2>/dev/null
+  fi
+}
+
+# Newest first, with project files (visible paths) ranked ahead of app-state
+# databases living under dot-directories, which churn constantly and would
+# otherwise crowd the list.
+scan() {
+  find_candidates |
+    xargs -0 -r stat -c $'%Y\t%s\t%n' 2>/dev/null |
+    awk -F'\t' -v home="$HOME/" '{
+      rank = (substr($3, length(home) + 1) ~ /^\./) ? 1 : 0
+      print rank "\t" $0
+    }' |
+    sort -t$'\t' -k1,1n -k2,2rn | head -14 | cut -f2-
+}
+
+case "${1:-}" in
+"")
+  launch
+  ;;
+--list)
+  scan | jq -Rs --arg home "$HOME" '
+    split("\n") | map(select(length > 0) | split("\t") | {
+      mtime: (.[0] | tonumber),
+      size: (.[1] | tonumber),
+      path: .[2],
+      name: (.[2] | split("/") | last),
+      dir: (.[2] | split("/")[:-1] | join("/") | sub("^\($home)"; "~"))
+    })'
+  ;;
+*)
+  launch "$1"
+  ;;
+esac
