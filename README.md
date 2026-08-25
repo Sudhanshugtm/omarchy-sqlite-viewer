@@ -63,8 +63,13 @@ Full transparency, because this widget walks your home directory:
   `pkexec` anywhere in this plugin.
 - **When it runs:** only on demand — opening the panel or pressing `r`.
   Nothing polls in the background. The scan takes ~30 ms with `fd`.
+- **Hard bounds:** traversal stops 8 directory levels deep, at most 400
+  candidate files are ever stat'ed and sorted, and the panel refuses
+  oversized scan output outright — a pathological home directory can slow
+  the scan down, but never make it unbounded. File names and paths are
+  rendered as plain text (`Text.PlainText`), never as rich text.
 
-The exact commands are in [`open-db`](open-db) — it's 77 lines of bash,
+The exact commands are in [`open-db`](open-db) — it's 87 lines of bash,
 please read it before installing (as you should for any shell plugin;
 Omarchy plugins run unsandboxed inside your shell process).
 

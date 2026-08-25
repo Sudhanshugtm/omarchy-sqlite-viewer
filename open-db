@@ -19,6 +19,12 @@ launch() {
   setsid uwsm app -- "$VIEWER" "$@" >/dev/null 2>&1 &
 }
 
+# Hard bounds so opening the panel can never trigger unbounded work, however
+# large the home directory: traversal stops at MAX_DEPTH, and at most
+# MAX_CANDIDATES files are stat'ed and sorted.
+MAX_DEPTH=8
+MAX_CANDIDATES=400
+
 # Recent database files under $HOME, skipping heavy tool caches and browser
 # profiles. fd when available (Omarchy installs it by default but does not
 # depend on it), plain find otherwise. Dot-named files (macOS ._* stubs) are
@@ -26,6 +32,7 @@ launch() {
 find_candidates() {
   if command -v fd >/dev/null 2>&1; then
     fd --absolute-path --type f --hidden \
+      --max-depth "$MAX_DEPTH" \
       -e db -e sqlite -e sqlite3 -e db3 \
       --changed-within 60d \
       -E node_modules -E .git -E .cache -E .cargo -E .rustup \
@@ -33,7 +40,7 @@ find_candidates() {
       -E .config/chromium -E '*chrome-profile*' \
       '^[^.]' "$HOME" -0 2>/dev/null
   else
-    find "$HOME" \
+    find "$HOME" -maxdepth "$MAX_DEPTH" \
       \( -name node_modules -o -name .git -o -name .cache -o -name .cargo \
          -o -name .rustup -o -name .mozilla -o -name .thunderbird \
          -o -name '*chrome-profile*' -o -path "$HOME/.local/share/Trash" \
@@ -46,9 +53,12 @@ find_candidates() {
 
 # Newest first, with project files (visible paths) ranked ahead of app-state
 # databases living under dot-directories, which churn constantly and would
-# otherwise crowd the list.
+# otherwise crowd the list. The candidate stream is truncated to
+# MAX_CANDIDATES *before* any stat/sort work happens, so the expensive part
+# of the pipeline is bounded regardless of how many files match.
 scan() {
   find_candidates |
+    head -z -n "$MAX_CANDIDATES" |
     xargs -0 -r stat -c $'%Y\t%s\t%n' 2>/dev/null |
     awk -F'\t' -v home="$HOME/" '{
       rank = (substr($3, length(home) + 1) ~ /^\./) ? 1 : 0

@@ -84,6 +84,9 @@ Panel {
     stdout: StdioCollector {
       onStreamFinished: {
         root.scanning = false
+        // Defense in depth: the helper bounds its output structurally, but
+        // never hand an unexpectedly huge payload to JSON.parse either.
+        if (text.length > 262144) { root.databases = []; return }
         try { root.databases = JSON.parse(text) } catch (e) { root.databases = [] }
         if (root.selectedIndex >= root.databases.length)
           root.selectedIndex = Math.max(0, root.databases.length - 1)
@@ -219,6 +222,8 @@ Panel {
                 id: rowName
                 width: parent.width
                 text: modelData.name
+                // Filesystem-derived string: never let it near AutoText/rich text.
+                textFormat: Text.PlainText
                 elide: Text.ElideMiddle
                 color: root.bar ? root.bar.foreground : Color.foreground
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -230,6 +235,8 @@ Panel {
                 id: rowDir
                 width: parent.width
                 text: modelData.dir
+                // Filesystem-derived string: never let it near AutoText/rich text.
+                textFormat: Text.PlainText
                 elide: Text.ElideMiddle
                 color: root.dimmed
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
